@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Power Usage & Cost Simulator</title>
+  <!--
+    Power Usage & Cost Simulator
+    -------------------------------------------------------------
+    A single-file, mobile-friendly HTML/JS app to model electricity
+    consumption of multiple devices and compute costs under tiered pricing.
+
+    ✦ Features
+      • Add devices (name, power in kW, usage in hours/day OR hours/week)
+      • Configure pricing levels (tiers): band (kWh), rate ($/kWh)
+      • Choose billing start month and total operation period in months
+      • Cost breakdown per tier + totals (tiers applied over the WHOLE period)
+      • Sample data loader
+      • Built-in developer self-tests (no external deps)
+      • **Bilingual UI (English/Arabic) with RTL support**
+
+    ✦ Tech
+      • Plain HTML/CSS/JS — no build step (great for GitHub Pages)
+
+    ✦ Notes
+      • “Power (kW)” here means average power draw. Daily energy = kW × hours.
+      • For “hours/week” entries, we distribute evenly (÷ 7) across days.
+
+    ✦ License
+      • Consider MIT when publishing to GitHub.
+
+    -------------------------------------------------------------
+  -->
+  <style>
+    :root {
+      --bg: #0f172a;         /* slate-900 */
+      --panel: #111827;      /* gray-900 */
+      --muted: #94a3b8;      /* slate-400 */
+      --text: #e5e7eb;       /* gray-200 */
+      --accent: #22c55e;     /* green-500 */
+      --accent-2: #60a5fa;   /* blue-400 */
+      --danger: #ef4444;     /* red-500 */
+      --card: #0b1220;       /* deep slate */
+      --border: #1f2937;     /* gray-800 */
+      --pass: #16a34a;       /* green-600 */
+      --fail: #ef4444;       /* red-500 */
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: linear-gradient(180deg, #0b1220, #0f172a);
+      color: var(--text);
+    }
+
+    header {
+      padding: 16px clamp(12px, 3vw, 28px);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; backdrop-filter: blur(6px);
+      background: rgba(11, 18, 32, 0.8);
+      z-index: 10; display:flex; gap:12px; align-items:center; justify-content:space-between;
+    }
+    header h1 { margin: 0; font-size: clamp(18px, 2.6vw, 24px); letter-spacing: 0.2px; }
+    header .sub { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+
+    .lang { display:flex; gap:8px; align-items:center; }
+    select.langpick { background:#0a1222; color:var(--text); border:1px solid var(--border); border-radius:10px; padding:8px 10px; }
+
+    .container {
+      display: grid; gap: 16px; padding: 16px clamp(12px, 3vw, 28px) 48px;
+      grid-template-columns: 1fr; max-width: 1200px; margin: 0 auto;
+    }
+    @media (min-width: 960px) {
+      .container { grid-template-columns: 1.1fr 1fr; }
+    }
+
+    .card {
+      background: linear-gradient(180deg, var(--panel), var(--card));
+      border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+    }
+    .card h2 { margin: 0; font-size: 1.1rem; letter-spacing: 0.3px; }
+    .card-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .card-body { padding: 14px 16px; }
+
+    .row { display: grid; gap: 10px; grid-template-columns: 1fr; }
+    @media (min-width: 640px) { .row.cols-2 { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 960px) { .row.cols-3 { grid-template-columns: 1fr 1fr 1fr; } }
+
+    label { display: block; font-size: 0.9rem; color: var(--muted); margin-bottom: 6px; }
+    input[type="text"], input[type="number"], input[type="month"], select {
+      width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border);
+      background: #0a1222; color: var(--text); outline: none; transition: border-color 120ms;
+    }
+    input:focus, select:focus { border-color: var(--accent-2); }
+
+    .inline { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .muted { color: var(--muted); font-size: 0.9rem; }
+
+    button {
+      appearance: none; border: none; cursor: pointer; border-radius: 12px;
+      padding: 10px 14px; font-weight: 600; letter-spacing: 0.2px; color: #061015;
+      background: linear-gradient(180deg, #a7f3d0, #34d399); box-shadow: 0 6px 18px rgba(34,197,94,0.25);
+    }
+    button.secondary { background: linear-gradient(180deg, #bae6fd, #60a5fa); color: #07131e; }
+    button.ghost { background: transparent; color: var(--muted); border: 1px dashed var(--border); }
+    button.icon { padding: 8px 10px; background: #102032; color: var(--text); border: 1px solid var(--border); }
+    button.danger { background: linear-gradient(180deg, #fecaca, #ef4444); color: #1b0d0e; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    th { color: var(--muted); font-weight: 600; }
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+
+    [dir="rtl"] th, [dir="rtl"] td { text-align: right; }
+    .right { text-align: right; }
+    .pill {
+      display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px;
+      background: #0c1a2b; border: 1px solid var(--border); color: var(--muted);
+    }
+
+    .footer { color: var(--muted); font-size: 0.9rem; padding: 18px; text-align: center; }
+    .totals { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+    .kpi { background: #0c1a2b; border: 1px solid var(--border); padding: 12px 14px; border-radius: 12px; }
+    .kpi b { display: block; font-size: 1.05rem; color: var(--text); }
+
+    .help { font-size: 0.85rem; color: var(--muted); }
+    .hr { height: 1px; background: var(--border); margin: 12px 0; }
+
+    /* Dev tests styling */
+    details.dev { margin: 12px clamp(12px,3vw,28px); }
+    .test-row { display:flex; gap:8px; align-items:center; padding:6px 0; border-bottom:1px dashed var(--border); }
+    .badge { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); }
+    .badge.pass { background:#062413; color:#bff7d0; border-color:#0b3b1c; }
+    .badge.fail { background:#2b0e0e; color:#ffc9c9; border-color:#4b1414; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1 data-i18n="appTitle">Power Usage & Cost Simulator</h1>
+      <div class="sub" data-i18n="appSub">Model device energy consumption and tiered electricity pricing. Mobile‑friendly. No build step.</div>
+    </div>
+    <div class="lang">
+      <label for="langSelect" class="muted" data-i18n="language">Language</label>
+      <select id="langSelect" class="langpick" aria-label="Language">
+        <option value="en">English</option>
+        <option value="ar">العربية</option>
+      </select>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Devices Panel -->
+    <section class="card" aria-labelledby="devices-title">
+      <div class="card-header">
+        <h2 id="devices-title" data-i18n="stepDevices">1) Devices</h2>
+        <div class="inline">
+          <button id="btnSample" class="secondary" title="Load example devices and tiers" data-i18n="loadSample">Load sample</button>
+          <button id="btnReset" class="ghost" title="Clear all inputs" data-i18n="reset">Reset</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row cols-3">
+          <div>
+            <label for="devName" data-i18n="deviceName">Device name</label>
+            <input id="devName" type="text" placeholder="e.g., Fridge" data-i18n-placeholder="phDeviceName" />
+          </div>
+          <div>
+            <label for="devPower" data-i18n="powerKW">Power (kW)</label>
+            <input id="devPower" type="number" step="0.01" min="0" placeholder="e.g., 0.15" data-i18n-placeholder="phPower" />
+            <div class="help" data-i18n="avgPowerHelp">Average power draw. Daily kWh = kW × hours.</div>
+          </div>
+          <div>
+            <label for="devHours" data-i18n="usage">Usage</label>
+            <div class="inline">
+              <input id="devHours" type="number" step="0.1" min="0" placeholder="e.g., 8" style="max-width: 120px;" data-i18n-placeholder="phHours" />
+              <select id="devMode" aria-label="Usage period">
+                <option value="day" data-i18n="hoursDay">hours/day</option>
+                <option value="week" data-i18n="hoursWeek">hours/week</option>
+              </select>
+              <button id="btnAddDevice" data-i18n="addDevice">Add device</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="table-wrap" style="overflow-x:auto">
+          <table aria-describedby="devices-help">
+            <thead>
+              <tr>
+                <th data-i18n="thDevice">Device</th>
+                <th class="right" data-i18n="thPower">Power (kW)</th>
+                <th class="right" data-i18n="thUsage">Usage</th>
+                <th class="right" data-i18n="thDailyKwh">Daily kWh</th>
+                <th class="right" data-i18n="thWeeklyKwh">Weekly kWh</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="deviceRows"></tbody>
+          </table>
+          <div id="devices-help" class="help" style="margin-top:8px" data-i18n="weekTip">Tip: For hours/week, we distribute evenly across days (÷ 7).</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tariff / Period Panel -->
+    <section class="card" aria-labelledby="tariff-title">
+      <div class="card-header">
+        <h2 id="tariff-title" data-i18n="stepTariff">2) Tariff & Period</h2>
+      </div>
+      <div class="card-body">
+        <div class="row cols-3">
+          <div>
+            <label for="billingStart" data-i18n="billingStart">Billing start month</label>
+            <input id="billingStart" type="month" />
+          </div>
+          <div>
+            <label for="periodMonths" data-i18n="periodMonths">Operation period (months)</label>
+            <input id="periodMonths" type="number" min="1" step="1" value="1" />
+          </div>
+          <div>
+            <label for="currency" data-i18n="currency">Currency symbol</label>
+            <input id="currency" type="text" value="$" maxlength="3" />
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="row cols-3">
+          <div>
+            <label for="tierBand" data-i18n="tierBand">Tier band (kWh)</label>
+            <input id="tierBand" type="number" min="0" step="0.1" placeholder="e.g., 120" data-i18n-placeholder="phBand" />
+            <div class="help" data-i18n="infiniteTip">Leave empty for unlimited band (∞) on the last tier.</div>
+          </div>
+          <div>
+            <label for="tierRate" data-i18n="tierRate">Rate (per kWh)</label>
+            <input id="tierRate" type="number" min="0" step="0.0001" placeholder="e.g., 0.12" data-i18n-placeholder="phRate" />
+          </div>
+          <div style="align-self:end">
+            <button id="btnAddTier" class="secondary" data-i18n="addTier">Add tier</button>
+          </div>
+        </div>
+
+        <div class="table-wrap" style="overflow-x:auto; margin-top:10px;">
+          <table aria-describedby="tiers-help">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="right" data-i18n="thBand">Band (kWh)</th>
+                <th class="right" data-i18n="thRate">Rate</th>
+                <th class="right" data-i18n="thDesc">Description</th>
+                <th class="right" data-i18n="thActions">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tierRows"></tbody>
+          </table>
+          <div id="tiers-help" class="help" style="margin-top:8px" data-i18n="orderMatters">Order matters: tiers are applied from top to bottom.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results Panel (spans full width on large screens) -->
+    <section class="card" style="grid-column: 1 / -1" aria-labelledby="results-title">
+      <div class="card-header">
+        <h2 id="results-title" data-i18n="stepResults">3) Usage & Cost Breakdown</h2>
+      </div>
+      <div class="card-body">
+        <div class="row cols-2" style="align-items:start;">
+          <div>
+            <div class="totals" id="totals"></div>
+          </div>
+          <div>
+            <div class="table-wrap" style="overflow-x:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th data-i18n="thTier">Tier</th>
+                    <th class="right" data-i18n="thKwhInTier">kWh in Tier</th>
+                    <th class="right" data-i18n="thRate">Rate</th>
+                    <th class="right" data-i18n="thCost">Cost</th>
+                  </tr>
+                </thead>
+                <tbody id="breakdownRows"></tbody>
+                <tfoot>
+                  <tr>
+                    <th data-i18n="total">Total</th>
+                    <th class="right" id="totalKwhCell">—</th>
+                    <th></th>
+                    <th class="right" id="totalCostCell">—</th>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="footer" data-i18n="footer">Built with ❤️ using HTML/JS. Publish on GitHub Pages by committing this file as <code>index.html</code>.</div>
+
+  <!-- Developer self-tests (collapsible) -->
+  <details class="dev" id="devTests">
+    <summary data-i18n="devTests">Developer self-tests (click to run)</summary>
+    <div id="testsOut" class="mono"></div>
+  </details>
+
+  <script>
+    // -------------------------------------------------------------
+    // App State, I18N & Utilities
+    // -------------------------------------------------------------
+
+    const i18n = {
+      en: {
+        appTitle: 'Power Usage & Cost Simulator',
+        appSub: 'Model device energy consumption and tiered electricity pricing. Mobile‑friendly. No build step.',
+        language: 'Language',
+        stepDevices: '1) Devices',
+        loadSample: 'Load sample',
+        reset: 'Reset',
+        deviceName: 'Device name',
+        phDeviceName: 'e.g., Fridge',
+        powerKW: 'Power (kW)',
+        phPower: 'e.g., 0.15',
+        avgPowerHelp: 'Average power draw. Daily kWh = kW × hours.',
+        usage: 'Usage',
+        phHours: 'e.g., 8',
+        hoursDay: 'hours/day',
+        hoursWeek: 'hours/week',
+        addDevice: 'Add device',
+        thDevice: 'Device',
+        thPower: 'Power (kW)',
+        thUsage: 'Usage',
+        thDailyKwh: 'Daily kWh',
+        thWeeklyKwh: 'Weekly kWh',
+        weekTip: 'Tip: For hours/week, we distribute evenly across days (÷ 7).',
+        stepTariff: '2) Tariff & Period',
+        billingStart: 'Billing start month',
+        periodMonths: 'Operation period (months)',
+        currency: 'Currency symbol',
+        tierBand: 'Tier band (kWh)',
+        phBand: 'e.g., 120',
+        infiniteTip: 'Leave empty for unlimited band (∞) on the last tier.',
+        tierRate: 'Rate (per kWh)',
+        phRate: 'e.g., 0.12',
+        addTier: 'Add tier',
+        thBand: 'Band (kWh)',
+        thRate: 'Rate',
+        thDesc: 'Description',
+        thActions: 'Actions',
+        orderMatters: 'Order matters: tiers are applied from top to bottom.',
+        stepResults: '3) Usage & Cost Breakdown',
+        thTier: 'Tier',
+        thKwhInTier: 'kWh in Tier',
+        thCost: 'Cost',
+        total: 'Total',
+        footer: 'Built with ❤️ using HTML/JS. Publish on GitHub Pages by committing this file as <code>index.html</code>.',
+        appliesUpTo: 'Applies up to {kwh} kWh',
+        kpiDevices: 'Devices',
+        kpiTiers: 'Tiers',
+        kpiDailyUsage: 'Daily usage',
+        kpiPeriodLen: 'Period length',
+        kpiAvgCost: 'Avg. cost / kWh',
+        alerts_deviceName: 'Please enter a device name.',
+        alerts_power: 'Please enter a valid power (kW).',
+        alerts_hours: 'Please enter valid hours.',
+        alerts_tierRate: 'Please enter a valid tier rate.',
+        alerts_tierBand: 'Tier band (kWh) must be ≥ 0 or blank for ∞.',
+        confirm_reset: 'Clear all devices, tiers, and settings?'
+      },
+      ar: {
+        appTitle: 'محاكي استهلاك وتكلفة الكهرباء',
+        appSub: 'نمذجة استهلاك الأجهزة وحساب التكلفة وفق شرائح التسعير. مناسب للجوال وبدون بناء مسبق.',
+        language: 'اللغة',
+        stepDevices: '١) الأجهزة',
+        loadSample: 'تحميل مثال',
+        reset: 'إعادة ضبط',
+        deviceName: 'اسم الجهاز',
+        phDeviceName: 'مثال: ثلاجة',
+        powerKW: 'القدرة (كيلوواط)',
+        phPower: 'مثال: ‎0.15‎',
+        avgPowerHelp: 'القدرة المتوسطة. ك.و.س/اليوم = ك.و × الساعات.',
+        usage: 'الاستخدام',
+        phHours: 'مثال: ‎8‎',
+        hoursDay: 'ساعات/يوم',
+        hoursWeek: 'ساعات/أسبوع',
+        addDevice: 'إضافة جهاز',
+        thDevice: 'الجهاز',
+        thPower: 'القدرة (ك.و)',
+        thUsage: 'الاستخدام',
+        thDailyKwh: 'ك.و.س/يوم',
+        thWeeklyKwh: 'ك.و.س/أسبوع',
+        weekTip: 'معلومة: يتم توزيع ساعات/الأسبوع بالتساوي على الأيام (÷ 7).',
+        stepTariff: '٢) التعرفة والفترة',
+        billingStart: 'شهر بدء الفوترة',
+        periodMonths: 'مدة التشغيل (بالأشهر)',
+        currency: 'رمز العملة',
+        tierBand: 'سعة الشريحة (ك.و.س)',
+        phBand: 'مثال: ‎120‎',
+        infiniteTip: 'اتركه فارغًا لجعل الشريحة الأخيرة غير محدودة (∞).',
+        tierRate: 'السعر (لكل ك.و.س)',
+        phRate: 'مثال: ‎0.12‎',
+        addTier: 'إضافة شريحة',
+        thBand: 'سعة (ك.و.س)',
+        thRate: 'السعر',
+        thDesc: 'وصف',
+        thActions: 'إجراءات',
+        orderMatters: 'مهم: تُطبّق الشرائح من الأعلى إلى الأسفل.',
+        stepResults: '٣) ملخص الاستهلاك والتكلفة',
+        thTier: 'الشريحة',
+        thKwhInTier: 'ك.و.س داخل الشريحة',
+        thCost: 'التكلفة',
+        total: 'الإجمالي',
+        footer: 'تم البناء بـ HTML/JS. انشر على GitHub Pages بوضعه كملف <code>index.html</code>.',
+        appliesUpTo: 'تنطبق حتى {kwh} ك.و.س',
+        kpiDevices: 'الأجهزة',
+        kpiTiers: 'الشرائح',
+        kpiDailyUsage: 'الاستهلاك اليومي',
+        kpiPeriodLen: 'مدة الفترة',
+        kpiAvgCost: 'متوسط السعر/ك.و.س',
+        alerts_deviceName: 'الرجاء إدخال اسم الجهاز.',
+        alerts_power: 'الرجاء إدخال قدرة صحيحة (ك.و).',
+        alerts_hours: 'الرجاء إدخال ساعات صحيحة.',
+        alerts_tierRate: 'الرجاء إدخال سعر شريحة صحيح.',
+        alerts_tierBand: 'سعة الشريحة (ك.و.س) يجب أن تكون ≥ 0 أو اتركها فارغة لانهائي.',
+        confirm_reset: 'هل تريد مسح كل الأجهزة والشرائح والإعدادات؟'
+      }
+    };
+
+    const LOCALE_MAP = { en: 'en', ar: 'ar' };
+
+    /**
+     * Global in-memory state.
+     */
+    const state = {
+      devices: /** @type {Array<{id:string,name:string,powerKW:number,mode:'day'|'week',hours:number}>} */ ([]),
+      tiers:   /** @type {Array<{id:string, bandKWh: number|null, rate:number}>} */ ([]),
+      billingStart: '',   // YYYY-MM
+      periodMonths: 1,
+      currency: '$',
+      lang: 'en'
+    };
+
+    /** Generate a short id for UI lists. */
+    const sid = () => Math.random().toString(36).slice(2, 8);
+
+    /** Clamp helper. */
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+    /** i18n helpers */
+    function t(key, params) {
+      const dict = i18n[state.lang] || i18n.en;
+      let s = dict[key] ?? i18n.en[key] ?? key;
+      if (params) for (const k in params) s = s.replace(`{${k}}`, params[k]);
+      return s;
+    }
+
+    function applyLang() {
+      const html = document.documentElement;
+      html.lang = state.lang; html.dir = state.lang === 'ar' ? 'rtl' : 'ltr';
+      // text nodes
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (!key) return;
+        el.innerHTML = t(key); // allow <code> in footer
+      });
+      // placeholders
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (!key) return;
+        el.setAttribute('placeholder', t(key));
+      });
+      // Also update <title>
+      document.title = t('appTitle');
+      // Re-render computed areas with localized labels
+      renderDevices(); renderTiers(); renderResults();
+    }
+
+    /** Formatters using the active locale */
+    function fmtNum(n, d=2) {
+      const nf = new Intl.NumberFormat(LOCALE_MAP[state.lang], { maximumFractionDigits: d, minimumFractionDigits: d });
+      return nf.format(Number(n) || 0);
+    }
+    function fmtInt(n) {
+      const nf = new Intl.NumberFormat(LOCALE_MAP[state.lang], { maximumFractionDigits: 0 });
+      return nf.format(Number(n) || 0);
+    }
+    function fmtMoney(n) {
+      const nf = new Intl.NumberFormat(LOCALE_MAP[state.lang], { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return `${state.currency}${nf.format(Number(n) || 0)}`;
+    }
+
+    /** Returns [year, month] from 'YYYY-MM'. */
+    const parseYYYYMM = (ym) => { const [y, m] = (ym || '').split('-').map(Number); return [y, m]; };
+
+    /** Days in month */
+    function daysInMonth(year, month) { return new Date(year, month, 0).getDate(); }
+
+    /** Make an array [1..n] */
+    function range(n) { return Array.from({ length: n }, (_, i) => i + 1); }
+
+    /** Compute per-device daily/weekly kWh totals */
+    function computeDailyTotals() {
+      const perDevice = state.devices.map(d => {
+        const hoursPerDay = d.mode === 'day' ? d.hours : (d.hours / 7);
+        const dailyKWh = d.powerKW * hoursPerDay;
+        return { id: d.id, name: d.name, powerKW: d.powerKW, mode: d.mode, hours: d.hours, dailyKWh, weeklyKWh: d.powerKW * (d.mode === 'day' ? d.hours * 7 : d.hours) };
+      });
+      const dailyTotal = perDevice.reduce((acc, x) => acc + x.dailyKWh, 0);
+      return { perDevice, dailyTotal };
+    }
+
+    /** Compute period details. Tiers apply over the WHOLE period. */
+    function computePeriod() {
+      const [y, m] = parseYYYYMM(state.billingStart);
+      const months = clamp(Number(state.periodMonths) || 1, 1, 120);
+      let totalDays = 0;
+      for (let i = 0; i < months; i++) {
+        const monthIndex = m + i; // 1-based
+        const yearOffset = Math.floor((monthIndex - 1) / 12);
+        const monthReal = ((monthIndex - 1) % 12) + 1;
+        totalDays += daysInMonth(y + yearOffset, monthReal);
+      }
+      const firstMonthDays = daysInMonth(y, m);
+      return { firstMonthYear: y, firstMonth: m, totalDays, firstMonthDays };
+    }
+
+    /** Apply tiered pricing to total kWh */
+    function applyTiers(totalKWh) {
+      let remaining = Math.max(0, totalKWh);
+      const rows = [];
+      if (!state.tiers.length) return { rows, totalCost: 0 };
+
+      state.tiers.forEach((tier, idx) => {
+        const cap = tier.bandKWh == null || tier.bandKWh <= 0 ? Infinity : tier.bandKWh;
+        const portion = Math.min(remaining, cap);
+        const cost = portion * tier.rate;
+        rows.push({ label: `Tier ${idx+1}${cap===Infinity? ' (∞)' : ''}`, kwh: portion, rate: tier.rate, cost });
+        remaining -= portion;
+      });
+
+      if (remaining > 0) {
+        const lastRate = state.tiers[state.tiers.length - 1].rate;
+        const extraCost = remaining * lastRate;
+        rows.push({ label: 'Unpriced overflow', kwh: remaining, rate: lastRate, cost: extraCost });
+        remaining = 0;
+      }
+
+      const totalCost = rows.reduce((a, r) => a + r.cost, 0);
+      return { rows, totalCost };
+    }
+
+    // -------------------------------------------------------------
+    // Rendering
+    // -------------------------------------------------------------
+
+    const $deviceRows = document.getElementById('deviceRows');
+    const $tierRows = document.getElementById('tierRows');
+    const $breakdownRows = document.getElementById('breakdownRows');
+    const $totals = document.getElementById('totals');
+    const $totalKwhCell = document.getElementById('totalKwhCell');
+    const $totalCostCell = document.getElementById('totalCostCell');
+
+    function renderDevices() {
+      const { perDevice } = computeDailyTotals();
+      $deviceRows.innerHTML = perDevice.map(d => `
+        <tr>
+          <td>${escapeHtml(d.name || '—')}</td>
+          <td class="right">${fmtNum(d.powerKW)}</td>
+          <td class="right">${fmtNum(d.hours)} <span class="pill">/ ${t(d.mode === 'day' ? 'hoursDay' : 'hoursWeek')}</span></td>
+          <td class="right">${fmtNum(d.dailyKWh)}</td>
+          <td class="right">${fmtNum(d.weeklyKWh)}</td>
+          <td class="right">
+            <button class="icon" aria-label="Delete" title="Delete" onclick="onDeleteDevice('${d.id}')">✕</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function renderTiers() {
+      $tierRows.innerHTML = state.tiers.map((tRow, i) => `
+        <tr>
+          <td>${i+1}</td>
+          <td class="right">${tRow.bandKWh == null || tRow.bandKWh <= 0 ? '∞' : fmtNum(tRow.bandKWh, 1)}</td>
+          <td class="right">${fmtMoney(tRow.rate)}</td>
+          <td class="right">${t('appliesUpTo', { kwh: tRow.bandKWh == null || tRow.bandKWh <= 0 ? '∞' : fmtNum(tRow.bandKWh, 1) })}</td>
+          <td class="right">
+            <span class="inline" style="justify-content:flex-end">
+              <button class="icon" title="Move up" ${i===0? 'disabled' : ''} onclick="onMoveTier(${i}, -1)">↑</button>
+              <button class="icon" title="Move down" ${i===state.tiers.length-1? 'disabled' : ''} onclick="onMoveTier(${i}, 1)">↓</button>
+              <button class="icon danger" title="Delete" onclick="onDeleteTier('${tRow.id}')">✕</button>
+            </span>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function renderResults() {
+      const { dailyTotal } = computeDailyTotals();
+      const { totalDays } = computePeriod();
+
+      const periodTotalKWh = dailyTotal * totalDays;
+      const { rows, totalCost } = applyTiers(periodTotalKWh);
+
+      $breakdownRows.innerHTML = rows.map(r => `
+        <tr>
+          <td>${escapeHtml(r.label)}</td>
+          <td class="right">${fmtNum(r.kwh)}</td>
+          <td class="right">${fmtMoney(r.rate)}</td>
+          <td class="right">${fmtMoney(r.cost)}</td>
+        </tr>
+      `).join('');
+
+      $totalKwhCell.textContent = fmtNum(periodTotalKWh);
+      $totalCostCell.textContent = fmtMoney(totalCost);
+
+      $totals.innerHTML = `
+        <div class="kpi"><span class="muted">${t('kpiDevices')}</span><b>${fmtInt(state.devices.length)}</b></div>
+        <div class="kpi"><span class="muted">${t('kpiTiers')}</span><b>${fmtInt(state.tiers.length)}</b></div>
+        <div class="kpi"><span class="muted">${t('kpiDailyUsage')}</span><b>${fmtNum(dailyTotal)} kWh</b></div>
+        <div class="kpi"><span class="muted">${t('kpiPeriodLen')}</span><b>${fmtInt(state.periodMonths)}</b></div>
+        <div class="kpi"><span class="muted">${t('kpiAvgCost')}</span><b>${periodTotalKWh > 0 ? fmtMoney(totalCost / periodTotalKWh) : `${state.currency}0.00`}</b></div>
+      `;
+    }
+
+    // -------------------------------------------------------------
+    // DOM Handlers
+    // -------------------------------------------------------------
+
+    // Device controls
+    const $devName = document.getElementById('devName');
+    const $devPower = document.getElementById('devPower');
+    const $devHours = document.getElementById('devHours');
+    const $devMode = document.getElementById('devMode');
+
+    document.getElementById('btnAddDevice').addEventListener('click', () => {
+      const name = ($devName.value || '').trim();
+      const powerKW = Number($devPower.value);
+      const hours = Number($devHours.value);
+      const mode = /** @type {'day'|'week'} */ ($devMode.value);
+
+      if (!name) return alert(t('alerts_deviceName'));
+      if (!(powerKW >= 0)) return alert(t('alerts_power'));
+      if (!(hours >= 0)) return alert(t('alerts_hours'));
+
+      state.devices.push({ id: sid(), name, powerKW, mode, hours });
+      $devName.value = ''; $devPower.value = ''; $devHours.value = '';
+      renderDevices(); renderResults();
+    });
+
+    // Tier controls
+    const $tierBand = document.getElementById('tierBand');
+    const $tierRate = document.getElementById('tierRate');
+
+    document.getElementById('btnAddTier').addEventListener('click', () => {
+      const bandStr = $tierBand.value.trim();
+      const bandKWh = bandStr === '' ? null : Number(bandStr);
+      const rate = Number($tierRate.value);
+      if (!(rate >= 0)) return alert(t('alerts_tierRate'));
+      if (bandKWh !== null && !(bandKWh >= 0)) return alert(t('alerts_tierBand'));
+      state.tiers.push({ id: sid(), bandKWh, rate });
+      $tierBand.value = ''; $tierRate.value = '';
+      renderTiers(); renderResults();
+    });
+
+    // Period / currency controls
+    const $billingStart = document.getElementById('billingStart');
+    const $periodMonths = document.getElementById('periodMonths');
+    const $currency = document.getElementById('currency');
+
+    $billingStart.addEventListener('change', () => { state.billingStart = $billingStart.value; renderResults(); });
+    $periodMonths.addEventListener('input', () => { state.periodMonths = clamp(Number($periodMonths.value)||1,1,120); renderResults(); });
+    $currency.addEventListener('input', () => { state.currency = $currency.value || '$'; renderResults(); });
+
+    // Language controls
+    const $langSelect = document.getElementById('langSelect');
+    $langSelect.addEventListener('change', () => { state.lang = $langSelect.value; applyLang(); });
+
+    // Sample + Reset
+    document.getElementById('btnSample').addEventListener('click', loadSample);
+    document.getElementById('btnReset').addEventListener('click', () => { if (confirm(t('confirm_reset'))) init(true); });
+
+    // Row actions exposed globally
+    window.onDeleteDevice = (id) => { state.devices = state.devices.filter(d => d.id !== id); renderDevices(); renderResults(); };
+    window.onDeleteTier = (id) => { state.tiers = state.tiers.filter(t => t.id !== id); renderTiers(); renderResults(); };
+    window.onMoveTier = (index, dir) => { const j = index + dir; if (j < 0 || j >= state.tiers.length) return; const tmp = state.tiers[index]; state.tiers[index] = state.tiers[j]; state.tiers[j] = tmp; renderTiers(); renderResults(); };
+
+    // -------------------------------------------------------------
+    // Sample & Initialization
+    // -------------------------------------------------------------
+
+    function loadSample() {
+      state.devices = [
+        { id: sid(), name: 'Fridge', powerKW: 0.15, mode: 'day',  hours: 24 },
+        { id: sid(), name: 'Laptop', powerKW: 0.06, mode: 'day',  hours: 8 },
+        { id: sid(), name: 'Air Conditioner', powerKW: 0.80, mode: 'day',  hours: 4 },
+        { id: sid(), name: 'TV', powerKW: 0.10, mode: 'week', hours: 10 },
+      ];
+      state.tiers = [
+        { id: sid(), bandKWh: 300, rate: 600 },
+        { id: sid(), bandKWh: null, rate: 1400 },
+      ];
+      state.currency = 'ل.س';
+
+      const now = new Date();
+      const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      state.billingStart = ym; state.periodMonths = 1;
+
+      $billingStart.value = ym; $periodMonths.value = String(state.periodMonths); $currency.value = state.currency;
+
+      renderDevices(); renderTiers(); renderResults();
+    }
+
+    function init(hardReset=false) {
+      if (hardReset) {
+        state.devices = []; state.tiers = [];
+        state.currency = '$'; state.periodMonths = 1;
+        const now = new Date();
+        const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+        state.billingStart = ym;
+        $billingStart.value = ym; $periodMonths.value = '1'; $currency.value = '$';
+      }
+      renderDevices(); renderTiers(); renderResults();
+    }
+
+    // Basic HTML escaping
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]));
+    }
+
+    // -------------------------------------------------------------
+    // Developer Self-Tests (no DOM snapshotting)
+    // -------------------------------------------------------------
+    function runSelfTests() {
+      const orig = { billingStart: state.billingStart, periodMonths: state.periodMonths, tiers: state.tiers.slice(), devices: state.devices.slice(), lang: state.lang };
+      const rows = [];
+      function test(name, fn) {
+        try { const r = fn(); const pass = r === true; rows.push({ name, pass, info: pass ? 'OK' : String(r) }); }
+        catch (e) { rows.push({ name, pass: false, info: String(e) }); }
+      }
+
+      // 1) escapeHtml
+      test('escapeHtml encodes &<>"', () => { const out = escapeHtml('&<>"'); return out === '&amp;&lt;&gt;&quot;'; });
+
+      // 2) applyTiers: exact fit second tier
+      test('applyTiers with 120/180/∞ on 250 kWh', () => {
+        state.tiers = [ {id:'a',bandKWh:120,rate:0.1}, {id:'b',bandKWh:180,rate:0.2}, {id:'c',bandKWh:null,rate:0.3} ];
+        const { rows, totalCost } = applyTiers(250);
+        const kwhs = rows.map(r=>r.kwh);
+        const expectCost = 120*0.1 + 130*0.2 + 0*0.3;
+        return (kwhs[0]===120 && kwhs[1]===130 && kwhs[2]===0 && Math.abs(totalCost - expectCost) < 1e-9) || `got ${JSON.stringify({kwhs,totalCost})}`;
+      });
+
+      // 3) applyTiers overflow without ∞
+      test('applyTiers overflow without ∞', () => {
+        state.tiers = [ {id:'a',bandKWh:100,rate:0.1}, {id:'b',bandKWh:100,rate:0.2} ];
+        const { rows } = applyTiers(250);
+        const last = rows[rows.length-1];
+        return (last.label === 'Unpriced overflow' && Math.abs(last.kwh - 50) < 1e-9 && Math.abs(last.rate - 0.2) < 1e-12) || JSON.stringify(last);
+      });
+
+      // 4) computePeriod across two months (Feb+Mar 2025 = 28 + 31 = 59)
+      test('computePeriod 2025-02 for 2 months => 59 days', () => {
+        state.billingStart = '2025-02'; state.periodMonths = 2;
+        const { totalDays, firstMonthDays } = computePeriod();
+        return (totalDays === 59 && firstMonthDays === 28) || `got totalDays=${totalDays}, firstMonthDays=${firstMonthDays}`;
+      });
+
+      // 5) weekly usage distribution
+      test('computeDailyTotals: 1kW × 7h/week => 1 kWh/day', () => {
+        state.devices = [ {id:'d',name:'Test',powerKW:1,mode:'week',hours:7} ];
+        const { dailyTotal } = computeDailyTotals();
+        return (Math.abs(dailyTotal - 1) < 1e-9) || `got dailyTotal=${dailyTotal}`;
+      });
+
+      // 6) zero usage => zero cost
+      test('applyTiers: zero usage => zero cost', () => { state.tiers = [ {id:'t1',bandKWh:100,rate:0.5} ]; const { totalCost } = applyTiers(0); return (Math.abs(totalCost) < 1e-12) || `got totalCost=${totalCost}`; });
+
+      // 7) Breakdown rows do not grow unbounded on repeated renders
+      test('breakdown rows bounded by tiers', () => {
+        loadSample();
+        for (let i = 0; i < 5; i++) renderResults();
+        const trCount = document.querySelectorAll('#breakdownRows tr').length;
+        const maxExpected = state.tiers.length + 1; // +1 for optional overflow line
+        return (trCount <= maxExpected) || `trCount=${trCount}, tiers=${state.tiers.length}`;
+      });
+
+      // 8) Day-based usage sanity check
+      test('computeDailyTotals: 2kW × 3h/day => 6 kWh/day', () => { state.devices = [ {id:'x',name:'X',powerKW:2,mode:'day',hours:3} ]; const { dailyTotal } = computeDailyTotals(); return (Math.abs(dailyTotal - 6) < 1e-9) || `got dailyTotal=${dailyTotal}`; });
+
+      // 9) Tier rows kWh sum equals total (with ∞)
+      test('applyTiers rows sum == total (∞ on last)', () => { state.tiers = [ {id:'t1',bandKWh:50,rate:0.1}, {id:'t2',bandKWh:null,rate:0.2} ]; const total = 135; const { rows } = applyTiers(total); const sum = rows.reduce((a,r)=>a+r.kwh,0); return (Math.abs(sum - total) < 1e-9) || `sum=${sum}`; });
+
+      // 10) I18N toggles dir/lang and updates labels
+      test('i18n switch to ar sets dir=rtl and label text', () => {
+        const titleEl = document.querySelector('[data-i18n="appTitle"]');
+        state.lang = 'ar'; applyLang();
+        const okDir = document.documentElement.dir === 'rtl';
+        const okText = titleEl && titleEl.textContent && titleEl.textContent.indexOf('محاكي') !== -1;
+        state.lang = 'en'; applyLang();
+        return (okDir && okText) || `dir=${document.documentElement.dir}, text=${titleEl && titleEl.textContent}`;
+      });
+
+      // 11) Money/number formatting in Arabic does not crash
+      test('fmtNum/fmtMoney work in ar', () => {
+        state.lang = 'ar';
+        const n1 = fmtNum(1234.567, 2);
+        const m1 = fmtMoney(89.5);
+        state.lang = 'en';
+        return (typeof n1 === 'string' && typeof m1 === 'string') || 'formatting failed';
+      });
+
+      // Restore
+      state.billingStart = orig.billingStart; state.periodMonths = orig.periodMonths; state.tiers = orig.tiers; state.devices = orig.devices; state.lang = orig.lang;
+      return rows;
+    }
+
+    function renderTests() {
+      const out = document.getElementById('testsOut');
+      out.innerHTML = '';
+      const rows = runSelfTests();
+      rows.forEach(r => {
+        const div = document.createElement('div');
+        div.className = 'test-row';
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + (r.pass ? 'pass' : 'fail');
+        badge.textContent = r.pass ? 'PASS' : 'FAIL';
+        const name = document.createElement('span');
+        name.textContent = r.name;
+        const info = document.createElement('span');
+        info.className = 'muted';
+        if (!r.pass && r.info) info.textContent = ` — ${r.info}`;
+        div.appendChild(badge); div.appendChild(name); div.appendChild(info);
+        out.appendChild(div);
+      });
+    }
+
+    document.getElementById('devTests').addEventListener('toggle', (e) => { if (e.target.open) renderTests(); });
+
+    // Boot: load sample and apply default language
+    (function boot(){
+      $langSelect.value = state.lang; // default 'en'
+      loadSample();
+      applyLang();
+    })();
+  </script>
+</body>
+</html>
