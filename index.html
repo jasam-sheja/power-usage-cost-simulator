@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <title>Power Usage & Cost Simulator</title>
   <!--
     Power Usage & Cost Simulator
@@ -57,7 +58,7 @@
     header {
       padding: 16px clamp(12px, 3vw, 28px);
       border-bottom: 1px solid var(--border);
-      position: sticky; top: 0; backdrop-filter: blur(6px);
+      top: 0; backdrop-filter: blur(6px);
       background: rgba(11, 18, 32, 0.8);
       z-index: 10; display:flex; gap:12px; align-items:center; justify-content:space-between;
     }
@@ -134,6 +135,34 @@
     .badge.pass { background:#062413; color:#bff7d0; border-color:#0b3b1c; }
     .badge.fail { background:#2b0e0e; color:#ffc9c9; border-color:#4b1414; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    .actions-bar { flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .actions-bar button { flex: 0 1 auto; }
+
+    @media (max-width: 860px) {
+      header { flex-direction: column; align-items: flex-start; gap: 10px; }
+      header .sub { max-width: 100%; }
+      .lang { width: 100%; justify-content: space-between; gap: 12px; }
+      select.langpick { flex: 1 1 auto; }
+      .card-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .actions-bar { width: 100%; justify-content: flex-start; }
+      .actions-bar button { width: 100%; }
+      .container { padding: 12px clamp(8px, 4vw, 20px) 36px; }
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 12px clamp(10px, 4vw, 18px); }
+      .card-body { padding: 12px; }
+      table { font-size: 0.9rem; }
+      th, td { padding: 8px 6px; }
+      .totals { flex-direction: column; }
+      .totals .kpi { width: 100%; }
+      #devHours { max-width: none; }
+      #devHours, #devMode, #btnAddDevice { flex: 1 1 100%; width: 100%; }
+      .lang { gap: 10px; }
+    }
   </style>
 </head>
 <body>
@@ -156,7 +185,10 @@
     <section class="card" aria-labelledby="devices-title">
       <div class="card-header">
         <h2 id="devices-title" data-i18n="stepDevices">1) Devices</h2>
-        <div class="inline">
+  <div class="inline actions-bar">
+          <button id="btnSaveConfig" class="secondary" title="Download current configuration" data-i18n="saveConfig">Save config</button>
+          <button id="btnLoadConfig" class="ghost" title="Load configuration from file" data-i18n="loadConfig">Load config</button>
+          <input id="configFileInput" type="file" accept="application/json" style="display:none" />
           <button id="btnSample" class="secondary" title="Load example devices and tiers" data-i18n="loadSample">Load sample</button>
           <button id="btnReset" class="ghost" title="Clear all inputs" data-i18n="reset">Reset</button>
         </div>
@@ -219,11 +251,11 @@
           </div>
           <div>
             <label for="periodMonths" data-i18n="periodMonths">Operation period (months)</label>
-            <input id="periodMonths" type="number" min="1" step="1" value="1" />
+            <input id="periodMonths" type="number" min="1" step="1" value="2" />
           </div>
           <div>
             <label for="currency" data-i18n="currency">Currency symbol</label>
-            <input id="currency" type="text" value="$" maxlength="3" />
+            <input id="currency" type="text" value="SYP" maxlength="3" />
           </div>
         </div>
 
@@ -300,7 +332,7 @@
     </section>
   </main>
 
-  <div class="footer" data-i18n="footer">Built with ❤️ using HTML/JS. Publish on GitHub Pages by committing this file as <code>index.html</code>.</div>
+  <div class="footer" data-i18n="footer">Built with ❤️ using HTML/JS</div>
 
   <!-- Developer self-tests (collapsible) -->
   <details class="dev" id="devTests">
@@ -321,6 +353,8 @@
         stepDevices: '1) Devices',
         loadSample: 'Load sample',
         reset: 'Reset',
+  saveConfig: 'Save config',
+  loadConfig: 'Load config',
         deviceName: 'Device name',
         phDeviceName: 'e.g., Fridge',
         powerKW: 'Power (kW)',
@@ -357,7 +391,7 @@
         thKwhInTier: 'kWh in Tier',
         thCost: 'Cost',
         total: 'Total',
-        footer: 'Built with ❤️ using HTML/JS. Publish on GitHub Pages by committing this file as <code>index.html</code>.',
+        footer: 'Built with ❤️ using HTML/JS',
         appliesUpTo: 'Applies up to {kwh} kWh',
         kpiDevices: 'Devices',
         kpiTiers: 'Tiers',
@@ -369,6 +403,8 @@
         alerts_hours: 'Please enter valid hours.',
         alerts_tierRate: 'Please enter a valid tier rate.',
         alerts_tierBand: 'Tier band (kWh) must be ≥ 0 or blank for ∞.',
+        alerts_loadFailed: 'Could not load configuration. Please choose a valid JSON file.',
+        alerts_loadSuccess: 'Configuration loaded successfully.',
         confirm_reset: 'Clear all devices, tiers, and settings?'
       },
       ar: {
@@ -378,6 +414,8 @@
         stepDevices: '١) الأجهزة',
         loadSample: 'تحميل مثال',
         reset: 'إعادة ضبط',
+  saveConfig: 'حفظ الإعدادات',
+  loadConfig: 'تحميل الإعدادات',
         deviceName: 'اسم الجهاز',
         phDeviceName: 'مثال: ثلاجة',
         powerKW: 'القدرة (كيلوواط)',
@@ -414,7 +452,7 @@
         thKwhInTier: 'ك.و.س داخل الشريحة',
         thCost: 'التكلفة',
         total: 'الإجمالي',
-        footer: 'تم البناء بـ HTML/JS. انشر على GitHub Pages بوضعه كملف <code>index.html</code>.',
+        footer: 'تم الإنشاء بحب ❤️ باستخدام HTML/JS',
         appliesUpTo: 'تنطبق حتى {kwh} ك.و.س',
         kpiDevices: 'الأجهزة',
         kpiTiers: 'الشرائح',
@@ -426,11 +464,27 @@
         alerts_hours: 'الرجاء إدخال ساعات صحيحة.',
         alerts_tierRate: 'الرجاء إدخال سعر شريحة صحيح.',
         alerts_tierBand: 'سعة الشريحة (ك.و.س) يجب أن تكون ≥ 0 أو اتركها فارغة لانهائي.',
+        alerts_loadFailed: 'تعذر تحميل الإعدادات. الرجاء اختيار ملف JSON صالح.',
+        alerts_loadSuccess: 'تم تحميل الإعدادات بنجاح.',
         confirm_reset: 'هل تريد مسح كل الأجهزة والشرائح والإعدادات؟'
       }
     };
 
     const LOCALE_MAP = { en: 'en', ar: 'ar' };
+    const DEFAULT_CURRENCY = Object.freeze({ en: 'SYP', ar: 'ل.س' });
+    const CONFIG_SCHEMA = 'power-usage-config/v1';
+    const YYYYMM_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+    function defaultCurrencyForLang(lang) {
+      return DEFAULT_CURRENCY[lang] || DEFAULT_CURRENCY.en;
+    }
+    function currentYYYYMM() {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    }
+    function ensureBillingStart(value) {
+      return YYYYMM_RE.test(value || '') ? value : currentYYYYMM();
+    }
 
     /**
      * Global in-memory state.
@@ -438,10 +492,10 @@
     const state = {
       devices: /** @type {Array<{id:string,name:string,powerKW:number,mode:'day'|'week',hours:number}>} */ ([]),
       tiers:   /** @type {Array<{id:string, bandKWh: number|null, rate:number}>} */ ([]),
-      billingStart: '',   // YYYY-MM
-      periodMonths: 1,
-      currency: '$',
-      lang: 'en'
+      billingStart: currentYYYYMM(),   // YYYY-MM
+      periodMonths: 2,
+      currency: defaultCurrencyForLang('ar'),
+      lang: 'ar'
     };
 
     /** Generate a short id for UI lists. */
@@ -449,6 +503,29 @@
 
     /** Clamp helper. */
     const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+    function sanitizeDevice(raw) {
+      if (!raw || typeof raw !== 'object') return null;
+      const name = typeof raw.name === 'string' ? raw.name.trim().slice(0, 120) : '';
+      if (!name) return null;
+      const powerKW = Number(raw.powerKW);
+      const hours = Number(raw.hours);
+      if (!(powerKW >= 0) || !(hours >= 0)) return null;
+      const mode = raw.mode === 'week' ? 'week' : 'day';
+      return { id: sid(), name, powerKW, mode, hours };
+    }
+
+    function sanitizeTier(raw) {
+      if (!raw || typeof raw !== 'object') return null;
+      const rate = Number(raw.rate);
+      if (!(rate >= 0)) return null;
+      if (raw.bandKWh == null || raw.bandKWh === '') {
+        return { id: sid(), bandKWh: null, rate };
+      }
+      const band = Number(raw.bandKWh);
+      if (!(band >= 0)) return null;
+      return { id: sid(), bandKWh: band, rate };
+    }
 
     /** i18n helpers */
     function t(key, params) {
@@ -458,7 +535,7 @@
       return s;
     }
 
-    function applyLang() {
+    function applyLang(prevLang) {
       const html = document.documentElement;
       html.lang = state.lang; html.dir = state.lang === 'ar' ? 'rtl' : 'ltr';
       // text nodes
@@ -475,6 +552,15 @@
       });
       // Also update <title>
       document.title = t('appTitle');
+      const currencyInput = document.getElementById('currency');
+      const prevDefault = prevLang ? defaultCurrencyForLang(prevLang) : null;
+      const nextDefault = defaultCurrencyForLang(state.lang);
+      if (!state.currency || !prevLang || state.currency === prevDefault) {
+        state.currency = nextDefault;
+        if (currencyInput) currencyInput.value = state.currency;
+      } else if (currencyInput && currencyInput.value !== state.currency) {
+        currencyInput.value = state.currency;
+      }
       // Re-render computed areas with localized labels
       renderDevices(); renderTiers(); renderResults();
     }
@@ -490,7 +576,9 @@
     }
     function fmtMoney(n) {
       const nf = new Intl.NumberFormat(LOCALE_MAP[state.lang], { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      return `${state.currency}${nf.format(Number(n) || 0)}`;
+      const symbol = (state.currency || defaultCurrencyForLang(state.lang)).trim();
+      const amount = nf.format(Number(n) || 0);
+      return symbol ? `${symbol}${symbol.length > 1 ? ' ' : ''}${amount}` : amount;
     }
 
     /** Returns [year, month] from 'YYYY-MM'. */
@@ -516,7 +604,7 @@
     /** Compute period details. Tiers apply over the WHOLE period. */
     function computePeriod() {
       const [y, m] = parseYYYYMM(state.billingStart);
-      const months = clamp(Number(state.periodMonths) || 1, 1, 120);
+      const months = clamp(Number(state.periodMonths) || 2, 1, 120);
       let totalDays = 0;
       for (let i = 0; i < months; i++) {
         const monthIndex = m + i; // 1-based
@@ -551,6 +639,60 @@
 
       const totalCost = rows.reduce((a, r) => a + r.cost, 0);
       return { rows, totalCost };
+    }
+
+    function serializeConfig() {
+      const safeBillingStart = ensureBillingStart(state.billingStart);
+      const currency = (state.currency || '').trim() || defaultCurrencyForLang(state.lang);
+      return {
+        schema: CONFIG_SCHEMA,
+        version: 1,
+        lang: state.lang,
+        billingStart: safeBillingStart,
+        periodMonths: state.periodMonths,
+        currency,
+        devices: state.devices.map(d => ({ name: d.name, powerKW: d.powerKW, mode: d.mode, hours: d.hours })),
+        tiers: state.tiers.map(t => ({ bandKWh: t.bandKWh, rate: t.rate }))
+      };
+    }
+
+    function downloadCurrentConfig() {
+      const data = serializeConfig();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const stamp = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `power-usage-config-${stamp}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    function applyConfigObject(cfg) {
+      if (!cfg || typeof cfg !== 'object') throw new Error('invalid config');
+      if (cfg.schema && cfg.schema !== CONFIG_SCHEMA) throw new Error('schema mismatch');
+      const devices = Array.isArray(cfg.devices) ? cfg.devices.map(sanitizeDevice).filter(Boolean) : [];
+      const tiers = Array.isArray(cfg.tiers) ? cfg.tiers.map(sanitizeTier).filter(Boolean) : [];
+      const targetLang = typeof cfg.lang === 'string' && i18n[cfg.lang] ? cfg.lang : state.lang;
+      const billingStart = ensureBillingStart(typeof cfg.billingStart === 'string' ? cfg.billingStart : state.billingStart);
+      const periodMonths = clamp(Number(cfg.periodMonths) || state.periodMonths || 2, 1, 120);
+      const rawCurrency = typeof cfg.currency === 'string' ? cfg.currency.trim() : '';
+      const prevLang = state.lang;
+      state.devices = devices;
+      state.tiers = tiers;
+      state.billingStart = billingStart;
+      state.periodMonths = periodMonths;
+      state.lang = targetLang;
+      state.currency = rawCurrency || defaultCurrencyForLang(state.lang);
+      applyLang(prevLang);
+      $billingStart.value = state.billingStart;
+      $periodMonths.value = String(state.periodMonths);
+      $currency.value = state.currency;
+      $langSelect.value = state.lang;
+      renderResults();
+      alert(t('alerts_loadSuccess'));
     }
 
     // -------------------------------------------------------------
@@ -630,6 +772,28 @@
     // DOM Handlers
     // -------------------------------------------------------------
 
+    const $btnSaveConfig = document.getElementById('btnSaveConfig');
+    const $btnLoadConfig = document.getElementById('btnLoadConfig');
+    const $configFileInput = document.getElementById('configFileInput');
+
+    $btnSaveConfig.addEventListener('click', downloadCurrentConfig);
+    $btnLoadConfig.addEventListener('click', () => { $configFileInput.click(); });
+    $configFileInput.addEventListener('change', async (event) => {
+      const input = event.target instanceof HTMLInputElement ? event.target : $configFileInput;
+      const file = input.files && input.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        applyConfigObject(parsed);
+      } catch (err) {
+        console.error(err);
+        alert(t('alerts_loadFailed'));
+      } finally {
+        input.value = '';
+      }
+    });
+
     // Device controls
     const $devName = document.getElementById('devName');
     const $devPower = document.getElementById('devPower');
@@ -671,13 +835,25 @@
     const $periodMonths = document.getElementById('periodMonths');
     const $currency = document.getElementById('currency');
 
-    $billingStart.addEventListener('change', () => { state.billingStart = $billingStart.value; renderResults(); });
-    $periodMonths.addEventListener('input', () => { state.periodMonths = clamp(Number($periodMonths.value)||1,1,120); renderResults(); });
-    $currency.addEventListener('input', () => { state.currency = $currency.value || '$'; renderResults(); });
+    $billingStart.addEventListener('change', () => {
+      state.billingStart = ensureBillingStart($billingStart.value);
+      $billingStart.value = state.billingStart;
+      renderResults();
+    });
+    $periodMonths.addEventListener('input', () => { state.periodMonths = clamp(Number($periodMonths.value)||2,1,120); renderResults(); });
+    $currency.addEventListener('input', () => {
+      const val = ($currency.value || '').trim();
+      state.currency = val || defaultCurrencyForLang(state.lang);
+      renderResults();
+    });
 
     // Language controls
     const $langSelect = document.getElementById('langSelect');
-    $langSelect.addEventListener('change', () => { state.lang = $langSelect.value; applyLang(); });
+    $langSelect.addEventListener('change', () => {
+      const prevLang = state.lang;
+      state.lang = $langSelect.value;
+      applyLang(prevLang);
+    });
 
     // Sample + Reset
     document.getElementById('btnSample').addEventListener('click', loadSample);
@@ -694,20 +870,21 @@
 
     function loadSample() {
       state.devices = [
-        { id: sid(), name: 'Fridge', powerKW: 0.15, mode: 'day',  hours: 24 },
-        { id: sid(), name: 'Laptop', powerKW: 0.06, mode: 'day',  hours: 8 },
-        { id: sid(), name: 'Air Conditioner', powerKW: 0.80, mode: 'day',  hours: 4 },
-        { id: sid(), name: 'TV', powerKW: 0.10, mode: 'week', hours: 10 },
+        { id: sid(), name: 'ثلاجة', powerKW: 0.15, mode: 'day',  hours: 24 },
+        { id: sid(), name: 'حاسوب محمول', powerKW: 0.06, mode: 'day',  hours: 8 },
+        { id: sid(), name: 'مكيف هواء', powerKW: 0.80, mode: 'day',  hours: 4 },
+        { id: sid(), name: 'تلفاز', powerKW: 0.10, mode: 'week', hours: 10 },
+        { id: sid(), name: 'غسالة', powerKW: 0.50, mode: 'week',  hours: 3 },
+        { id: sid(), name: 'إنارة منزلية', powerKW: 0.10, mode: 'day',  hours: 5 },
       ];
       state.tiers = [
         { id: sid(), bandKWh: 300, rate: 600 },
         { id: sid(), bandKWh: null, rate: 1400 },
       ];
-      state.currency = 'ل.س';
+      state.currency = defaultCurrencyForLang(state.lang);
 
-      const now = new Date();
-      const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-      state.billingStart = ym; state.periodMonths = 1;
+      const ym = currentYYYYMM();
+      state.billingStart = ym; state.periodMonths = 2;
 
       $billingStart.value = ym; $periodMonths.value = String(state.periodMonths); $currency.value = state.currency;
 
@@ -717,11 +894,10 @@
     function init(hardReset=false) {
       if (hardReset) {
         state.devices = []; state.tiers = [];
-        state.currency = '$'; state.periodMonths = 1;
-        const now = new Date();
-        const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+        state.currency = defaultCurrencyForLang(state.lang); state.periodMonths = 2;
+        const ym = currentYYYYMM();
         state.billingStart = ym;
-        $billingStart.value = ym; $periodMonths.value = '1'; $currency.value = '$';
+        $billingStart.value = ym; $periodMonths.value = String(state.periodMonths); $currency.value = state.currency;
       }
       renderDevices(); renderTiers(); renderResults();
     }
