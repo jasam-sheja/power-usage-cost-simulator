@@ -391,6 +391,21 @@
         hoursDay: 'hours/day',
         hoursWeek: 'hours/week',
         addDevice: 'Add device',
+  tip_devName: 'Device display name. Keep it short.',
+  tip_powerKW: 'Average power draw in kilowatts (kW). e.g., 0.15',
+  tip_hours: 'Usage amount. Enter hours per day or hours per week depending on the selector.',
+  tip_mode: 'Choose whether the hours value is per day or per week.',
+  tip_addDevice: 'Add a new device to the list using the values on the left.',
+  tip_deleteDevice: 'Remove this device from the simulation',
+  tip_saveConfig: 'Download the current configuration as JSON',
+  tip_loadConfig: 'Load a configuration JSON file from disk',
+  tip_loadSample: 'Load example devices and tariff tiers',
+  tip_reset: 'Clear all devices, tiers and settings (confirm)',
+  tip_tierBand: 'Maximum kWh in this tier (leave blank for ∞)',
+  tip_tierRate: 'Price per kWh for this tier',
+  tip_billingStart: 'Billing starting month for the period',
+  tip_periodMonths: 'Total operation period in months used to compute totals',
+  tip_currency: 'Currency symbol or short code to display with amounts',
         thDevice: 'Device',
         thPower: 'Power (kW)',
         thUsage: 'Usage',
@@ -458,6 +473,21 @@
         hoursDay: 'ساعات/يوم',
         hoursWeek: 'ساعات/أسبوع',
         addDevice: 'إضافة جهاز',
+  tip_devName: 'اسم الجهاز لعرضه في الجدول. اجعله موجزاً.',
+  tip_powerKW: 'متوسط القدرة بالكيلوواط (kW). مثال: 0.15',
+  tip_hours: 'ادخل عدد الساعات. سواء باليوم أو بالأسبوع حسب المحدد.',
+  tip_mode: 'اختر إذا كانت الساعات يومية أم أسبوعية.',
+  tip_addDevice: 'أضف جهازاً جديداً للقائمة بالقيم على اليسار.',
+  tip_deleteDevice: 'إزالة هذا الجهاز من المحاكاة',
+  tip_saveConfig: 'تحميل الإعدادات الحالية كملف JSON',
+  tip_loadConfig: 'تحميل ملف إعدادات JSON من القرص',
+  tip_loadSample: 'تحميل مثال للأجهزة والشرائح',
+  tip_reset: 'مسح كل الأجهزة والشرائح والإعدادات (تأكيد)',
+  tip_tierBand: 'الحد الأقصى لك.و.س في هذه الشريحة (اتركه فارغًا للانتهاء)',
+  tip_tierRate: 'السعر لكل ك.و.س لهذه الشريحة',
+  tip_billingStart: 'شهر بدء الفوترة للفترة',
+  tip_periodMonths: 'مدة التشغيل بالأشهر المستخدمة لحساب الإجماليات',
+  tip_currency: 'رمز العملة أو الاختصار ليظهر مع المبالغ',
         thDevice: 'الجهاز',
         thPower: 'القدرة (ك.و)',
         thUsage: 'الاستخدام',
@@ -599,8 +629,22 @@
       } else if (currencyInput && currencyInput.value !== state.currency) {
         currencyInput.value = state.currency;
       }
-      // Re-render computed areas with localized labels
-      renderDevices(); renderTiers(); renderResults();
+  // Re-render computed areas with localized labels
+  renderDevices(); renderTiers(); renderResults();
+
+  // Set translated title/tooltips for static controls (if present)
+  const setTitle = (id, key) => { const el = document.getElementById(id); if (el) el.setAttribute('title', t(key)); };
+  setTitle('btnSaveConfig', 'tip_saveConfig');
+  setTitle('btnLoadConfig', 'tip_loadConfig');
+  setTitle('btnSample', 'tip_loadSample');
+  setTitle('btnReset', 'tip_reset');
+  setTitle('btnAddTier', 'tip_addTier');
+  setTitle('btnAddDevice', 'tip_addDevice');
+  setTitle('billingStart', 'tip_billingStart');
+  setTitle('periodMonths', 'tip_periodMonths');
+  setTitle('currency', 'tip_currency');
+  setTitle('tierBand', 'tip_tierBand');
+  setTitle('tierRate', 'tip_tierRate');
     }
 
     /** Formatters using the active locale */
@@ -749,14 +793,14 @@
       // Render each device row with editable inputs. Inputs call onUpdateDevice on input/change.
       $deviceRows.innerHTML = perDevice.map(d => `
         <tr data-id="${d.id}">
-          <td>${escapeHtml(d.name || '—')}</td>
+          <td title="${escapeHtml(t('tip_devName'))}" oninput="onUpdateDevice('${d.id}','name', this.value)">${escapeHtml(d.name || '—')}</td>
+
           <td class="right">
-            <input type="number" step="0.01" min="0" value="${String(d.powerKW)}" style="width:86px;text-align:right;" oninput="onUpdateDevice('${d.id}','powerKW', this.value)" />
+            <input type="number" step="0.01" min="0" value="${String(d.powerKW)}" style="width:86px;text-align:right;" title="${escapeHtml(t('tip_powerKW'))}" oninput="onUpdateDevice('${d.id}','powerKW', this.value)" />
           </td>
           <td class="right">
-            <input type="number" step="0.1" min="0" value="${String(d.hours)}" style="width:86px;text-align:right;" oninput="onUpdateDevice('${d.id}','hours', this.value)" />
-            
-            <select onchange="onUpdateDevice('${d.id}','mode', this.value)" style="margin-left:8px">
+            <input type="number" step="0.1" min="0" value="${String(d.hours)}" style="width:86px;text-align:right;" title="${escapeHtml(t('tip_hours'))}" oninput="onUpdateDevice('${d.id}','hours', this.value)" />
+            <select onchange="onUpdateDevice('${d.id}','mode', this.value)" style="margin-left:8px" title="${escapeHtml(t('tip_mode'))}">
               <option value="day" ${d.mode==='day' ? 'selected' : ''}>${t('hoursDay')}</option>
               <option value="week" ${d.mode==='week' ? 'selected' : ''}>${t('hoursWeek')}</option>
             </select>
@@ -764,7 +808,7 @@
           <td class="right"><span id="daily-${d.id}">${fmtNum(d.dailyKWh)}</span></td>
           <td class="right"><span id="weekly-${d.id}">${fmtNum(d.weeklyKWh)}</span></td>
           <td class="right">
-            <button class="icon" aria-label="Delete" title="Delete" onclick="onDeleteDevice('${d.id}')">✕</button>
+            <button class="icon" aria-label="${escapeHtml(t('tip_deleteDevice'))}" title="${escapeHtml(t('tip_deleteDevice'))}" onclick="onDeleteDevice('${d.id}')">✕</button>
           </td>
         </tr>
       `).join('');
