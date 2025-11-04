@@ -746,13 +746,23 @@
 
     function renderDevices() {
       const { perDevice } = computeDailyTotals();
+      // Render each device row with editable inputs. Inputs call onUpdateDevice on input/change.
       $deviceRows.innerHTML = perDevice.map(d => `
-        <tr>
+        <tr data-id="${d.id}">
           <td>${escapeHtml(d.name || '—')}</td>
-          <td class="right">${fmtNum(d.powerKW)}</td>
-          <td class="right">${fmtNum(d.hours)} <span class="pill">/ ${t(d.mode === 'day' ? 'hoursDay' : 'hoursWeek')}</span></td>
-          <td class="right">${fmtNum(d.dailyKWh)}</td>
-          <td class="right">${fmtNum(d.weeklyKWh)}</td>
+          <td class="right">
+            <input type="number" step="0.01" min="0" value="${String(d.powerKW)}" style="width:86px;text-align:right;" oninput="onUpdateDevice('${d.id}','powerKW', this.value)" />
+          </td>
+          <td class="right">
+            <input type="number" step="0.1" min="0" value="${String(d.hours)}" style="width:86px;text-align:right;" oninput="onUpdateDevice('${d.id}','hours', this.value)" />
+            
+            <select onchange="onUpdateDevice('${d.id}','mode', this.value)" style="margin-left:8px">
+              <option value="day" ${d.mode==='day' ? 'selected' : ''}>${t('hoursDay')}</option>
+              <option value="week" ${d.mode==='week' ? 'selected' : ''}>${t('hoursWeek')}</option>
+            </select>
+          </td>
+          <td class="right"><span id="daily-${d.id}">${fmtNum(d.dailyKWh)}</span></td>
+          <td class="right"><span id="weekly-${d.id}">${fmtNum(d.weeklyKWh)}</span></td>
           <td class="right">
             <button class="icon" aria-label="Delete" title="Delete" onclick="onDeleteDevice('${d.id}')">✕</button>
           </td>
@@ -899,6 +909,35 @@
 
     // Row actions exposed globally
     window.onDeleteDevice = (id) => { state.devices = state.devices.filter(d => d.id !== id); renderDevices(); renderResults(); };
+    // Update a device field in-place. field is one of 'name','powerKW','hours','mode'.
+    window.onUpdateDevice = (id, field, raw) => {
+      try {
+        const device = state.devices.find(d => d.id === id);
+        if (!device) return;
+        if (field === 'name') {
+          device.name = String(raw || '').slice(0, 120);
+        } else if (field === 'powerKW') {
+          const v = Number(String(raw).replace(/,/g, ''));
+          device.powerKW = isFinite(v) && v >= 0 ? v : 0;
+        } else if (field === 'hours') {
+          const v = Number(String(raw).replace(/,/g, ''));
+          device.hours = isFinite(v) && v >= 0 ? v : 0;
+        } else if (field === 'mode') {
+          device.mode = raw === 'week' ? 'week' : 'day';
+        }
+        // Update computed cells for this row only to avoid losing focus.
+        const hoursPerDay = device.mode === 'day' ? device.hours : (device.hours / 7);
+        const dailyKWh = device.powerKW * hoursPerDay;
+        const weeklyKWh = device.powerKW * (device.mode === 'day' ? device.hours * 7 : device.hours);
+        const dailyEl = document.getElementById(`daily-${id}`);
+        const weeklyEl = document.getElementById(`weekly-${id}`);
+        const modeEl = document.getElementById(`mode-${id}`);
+        if (dailyEl) dailyEl.textContent = fmtNum(dailyKWh);
+        if (weeklyEl) weeklyEl.textContent = fmtNum(weeklyKWh);
+        if (modeEl) modeEl.textContent = '/ ' + t(device.mode === 'day' ? 'hoursDay' : 'hoursWeek');
+        renderResults();
+      } catch (e) { console.error(e); }
+    };
     window.onDeleteTier = (id) => { state.tiers = state.tiers.filter(t => t.id !== id); renderTiers(); renderResults(); };
     window.onMoveTier = (index, dir) => { const j = index + dir; if (j < 0 || j >= state.tiers.length) return; const tmp = state.tiers[index]; state.tiers[index] = state.tiers[j]; state.tiers[j] = tmp; renderTiers(); renderResults(); };
 
